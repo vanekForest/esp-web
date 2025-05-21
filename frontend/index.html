@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <title>ESP32 Temp Monitor</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #111;
+            color: #eee;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        h1 {
+            margin-top: 30px;
+            user-select: none;
+        }
+        .box {
+            font-size: 2em;
+            margin: 20px;
+            user-select: none;
+        }
+        .error {
+            color: #e74c3c;
+        }
+        button {
+            padding: 10px 25px;
+            font-size: 1.1em;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.3s ease;
+        }
+        button:hover {
+            background: #c0392b;
+        }
+        #message {
+            margin-top: 15px;
+            color: #2ecc71;
+            font-weight: bold;
+            height: 1.5em;
+            visibility: hidden;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+<h1>🔥 Температура с ESP32</h1>
+<div class="box">Текущая: <span id="temp">--</span> <span id="unit">°C</span></div>
+<div class="box">Средняя: <span id="avg">--</span> °C</div>
+<button onclick="resetAverage()">Сбросить среднюю</button>
+<div id="message"></div>
+
+<script>
+    const apiBase = "/api";
+
+    async function fetchTemp() {
+        try {
+            const response = await fetch(`${apiBase}/temp`);
+            if (!response.ok) throw new Error('Ошибка сети');
+            const data = await response.json();
+
+            const tempEl = document.getElementById("temp");
+            const unitEl = document.getElementById("unit");
+
+            if (data.current === null) {
+                tempEl.textContent = "Sensor error";
+                tempEl.classList.add("error");
+                unitEl.style.display = "none";
+            } else {
+                tempEl.textContent = data.current.toFixed(1);
+                tempEl.classList.remove("error");
+                unitEl.style.display = "inline";
+            }
+
+            document.getElementById("avg").textContent = data.average?.toFixed(1) ?? "--";
+        } catch (err) {
+            console.error("Ошибка получения данных:", err);
+            document.getElementById("temp").textContent = "--";
+            document.getElementById("avg").textContent = "--";
+        }
+    }
+
+    async function resetAverage() {
+        try {
+            const response = await fetch(`${apiBase}/reset`, { method: "POST" });
+            if (!response.ok) throw new Error('Ошибка сброса');
+            document.getElementById("avg").textContent = "0.0";
+            showMessage("Средняя температура сброшена!");
+            setTimeout(fetchTemp, 1000);
+        } catch (err) {
+            console.error(err);
+            showMessage("Ошибка при сбросе");
+        }
+    }
+
+    function showMessage(msg) {
+        const msgDiv = document.getElementById("message");
+        msgDiv.textContent = msg;
+        msgDiv.style.visibility = "visible";
+        setTimeout(() => { msgDiv.style.visibility = "hidden"; }, 5000);
+    }
+
+    setInterval(fetchTemp, 2000);
+    fetchTemp();
+</script>
+</body>
+</html>
