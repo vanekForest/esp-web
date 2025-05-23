@@ -12,7 +12,7 @@ const char* password = "12345678";
 #define ONE_WIRE_BUS 18
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
-DeviceAddress sensorAddress;
+DeviceAddress sensorIndoor, sensorOutdoor;
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -20,9 +20,11 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 WebServer server(80);
 
-float tempSum = 0;
+float indoorSum = 0;
+float outdoorSum = 0;
 int tempCount = 0;
-float currentTemp = 0;
+float currentIndoor = 0;
+float currentOutdoor = 0;
 
 void addCORS() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
@@ -34,11 +36,17 @@ void setup() {
   Serial.begin(9600);
 
   sensors.begin();
-  if (sensors.getDeviceCount() > 0) {
-    sensors.getAddress(sensorAddress, 0);
-  } else {
-    Serial.println("DS18B20 not found!");
+  int count = sensors.getDeviceCount();
+  Serial.print("Found sensors: ");
+  Serial.println(count);
+
+  if (count < 2) {
+    Serial.println("Ошибка: ожидалось 2 датчика!");
+    while (true);
   }
+
+  sensors.getAddress(sensorIndoor, 0);
+  sensors.getAddress(sensorOutdoor, 1);
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println("SSD1306 not found");
@@ -59,9 +67,11 @@ void setup() {
 
   server.on("/api/temp", []() {
     addCORS();
-    StaticJsonDocument<200> doc;
-    doc["current"] = currentTemp;
-    doc["average"] = (tempCount == 0) ? 0 : (tempSum / tempCount);
+    StaticJsonDocument<256> doc;
+    doc["indoor"] = currentIndoor;
+    doc["outdoor"] = currentOutdoor;
+    doc["indoor_avg"] = (tempCount == 0) ? 0 : (indoorSum / tempCount);
+    doc["outdoor_avg"] = (tempCount == 0) ? 0 : (outdoorSum / tempCount);
     String response;
     serializeJson(doc, response);
     server.send(200, "application/json", response);
@@ -69,7 +79,8 @@ void setup() {
 
   server.on("/api/reset", []() {
     addCORS();
-    tempSum = 0;
+    indoorSum = 0;
+    outdoorSum = 0;
     tempCount = 0;
     server.send(200, "application/json", "{\"status\":\"ok\"}");
   });
@@ -89,21 +100,29 @@ void setup() {
 
 void loop() {
   sensors.requestTemperatures();
-  currentTemp = sensors.getTempC(sensorAddress);
-  tempSum += currentTemp;
+
+  currentIndoor = sensors.getTempC(sensorIndoor);
+  currentOutdoor = sensors.getTempC(sensorOutdoor);
+
+  indoorSum += currentIndoor;
+  outdoorSum += currentOutdoor;
   tempCount++;
 
   display.clearDisplay();
   display.setTextSize(1);
+
   display.setCursor(0, 20);
-  if (currentTemp == -127) {
-    display.print("Sensor error");
-  } else {
-    display.setCursor(40, 30);
-    display.print(currentTemp, 1);
-    display.write(247);
-    display.print("C");
-  }
+  display.print("Indoor: ");
+  display.print(currentIndoor, 1);
+  display.write(247); // знак °
+  display.print("C");
+
+  display.setCursor(0, 40);
+  display.print("Outdoor: ");
+  display.print(currentOutdoor, 1);
+  display.write(247);
+  display.print("C");
+
   display.display();
 
   server.handleClient();
