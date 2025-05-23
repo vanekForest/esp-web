@@ -17,8 +17,8 @@
             user-select: none;
         }
         .box {
-            font-size: 2em;
-            margin: 20px;
+            font-size: 1.6em;
+            margin: 10px;
             user-select: none;
         }
         .error {
@@ -49,10 +49,10 @@
     </style>
 </head>
 <body>
-<h1>🔥 Температура с ESP32</h1>
-<div class="box">Текущая: <span id="temp">--</span> <span id="unit">°C</span></div>
-<div class="box">Средняя: <span id="avg">--</span> °C</div>
-<button onclick="resetAverage()">Сбросить среднюю</button>
+<h1>🌡️ Температура с ESP32</h1>
+<div class="box">🏠 Внутри: <span id="indoor">--</span> °C (ср: <span id="indoor_avg">--</span>)</div>
+<div class="box">🌲 Снаружи: <span id="outdoor">--</span> °C (ср: <span id="outdoor_avg">--</span>)</div>
+<button onclick="resetAverage()">Сбросить средние</button>
 <div id="message"></div>
 
 <script>
@@ -64,24 +64,26 @@
             if (!response.ok) throw new Error('Ошибка сети');
             const data = await response.json();
 
-            const tempEl = document.getElementById("temp");
-            const unitEl = document.getElementById("unit");
-
-            if (data.current === null) {
-                tempEl.textContent = "Sensor error";
-                tempEl.classList.add("error");
-                unitEl.style.display = "none";
-            } else {
-                tempEl.textContent = data.current.toFixed(1);
-                tempEl.classList.remove("error");
-                unitEl.style.display = "inline";
-            }
-
-            document.getElementById("avg").textContent = data.average?.toFixed(1) ?? "--";
+            updateField("indoor", data.indoor);
+            updateField("outdoor", data.outdoor);
+            updateField("indoor_avg", data.indoor_avg);
+            updateField("outdoor_avg", data.outdoor_avg);
         } catch (err) {
             console.error("Ошибка получения данных:", err);
-            document.getElementById("temp").textContent = "--";
-            document.getElementById("avg").textContent = "--";
+            ["indoor", "outdoor", "indoor_avg", "outdoor_avg"].forEach(id => {
+                document.getElementById(id).textContent = "--";
+            });
+        }
+    }
+
+    function updateField(id, value) {
+        const el = document.getElementById(id);
+        if (value === null || value === undefined || value === -127) {
+            el.textContent = "--";
+            el.classList.add("error");
+        } else {
+            el.textContent = value.toFixed(1);
+            el.classList.remove("error");
         }
     }
 
@@ -89,8 +91,10 @@
         try {
             const response = await fetch(`${apiBase}/reset`, { method: "POST" });
             if (!response.ok) throw new Error('Ошибка сброса');
-            document.getElementById("avg").textContent = "0.0";
-            showMessage("Средняя температура сброшена!");
+            ["indoor_avg", "outdoor_avg"].forEach(id => {
+                document.getElementById(id).textContent = "0.0";
+            });
+            showMessage("Средние температуры сброшены!");
             setTimeout(fetchTemp, 1000);
         } catch (err) {
             console.error(err);

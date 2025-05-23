@@ -1,5 +1,5 @@
 import logging
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import requests
 import threading
 import time
@@ -9,33 +9,38 @@ log = logging.getLogger()
 
 app = Flask(__name__)
 
-ESP32_URL = "http://192.168.31.23/api/temp"
+ESP32_URL = "http://host.docker.internal:8083/api/temp"
 FETCH_INTERVAL = 2
 
-latest_temp = None
-temp_sum = 0.0
+latest_indoor = None
+latest_outdoor = None
+indoor_sum = 0.0
+outdoor_sum = 0.0
 temp_count = 0
 
 
 def fetch_from_esp32():
-    global latest_temp, temp_sum, temp_count
+    global latest_indoor, latest_outdoor, indoor_sum, outdoor_sum, temp_count
 
     while True:
         try:
             response = requests.get(ESP32_URL, timeout=5)
             if response.ok:
                 data = response.json()
-                temp = float(data.get("current", -127))
+                indoor = float(data.get("indoor", -127))
+                outdoor = float(data.get("outdoor", -127))
 
-                if temp == -127:
-                    log.warning("Received invalid temperature (-127) from ESP32")
-                else:
-                    latest_temp = temp
-                    temp_sum += temp
+                if indoor != -127 and outdoor != -127:
+                    latest_indoor = indoor
+                    latest_outdoor = outdoor
+                    indoor_sum += indoor
+                    outdoor_sum += outdoor
                     temp_count += 1
-                    log.info(f"Valid temperature received: {temp:.1f}°C")
+                    log.info(f"Indoor: {indoor:.1f}°C | Outdoor: {outdoor:.1f}°C")
+                else:
+                    log.warning("Invalid temperature received from ESP32")
             else:
-                log.warning(f"Bad HTTP response from ESP32: {response.status_code}")
+                log.warning(f"Bad HTTP response: {response.status_code}")
         except Exception as e:
             log.error(f"Exception while fetching temperature: {e}")
 
@@ -44,11 +49,15 @@ def fetch_from_esp32():
 
 @app.route("/api/temp", methods=["GET"])
 def get_temp():
-    if temp_count == 0 or latest_temp is None:
-        result = {"current": None, "average": 0.0}
+    if temp_count == 0 or latest_indoor is None or latest_outdoor is None:
+        result = {"indoor": None, "outdoor": None, "indoor_avg": 0.0, "outdoor_avg": 0.0}
     else:
-        average = round(temp_sum / temp_count, 1)
-        result = {"current": round(latest_temp, 1), "average": average}
+        result = {
+            "indoor": round(latest_indoor, 1),
+            "outdoor": round(latest_outdoor, 1),
+            "indoor_avg": round(indoor_sum / temp_count, 1),
+            "outdoor_avg": round(outdoor_sum / temp_count, 1)
+        }
 
     log.info(f"Responding with: {result}")
     return jsonify(result)
@@ -56,10 +65,11 @@ def get_temp():
 
 @app.route("/api/reset", methods=["POST"])
 def reset_avg():
-    global temp_sum, temp_count
-    temp_sum = 0.0
+    global indoor_sum, outdoor_sum, temp_count
+    indoor_sum = 0.0
+    outdoor_sum = 0.0
     temp_count = 0
-    log.info("Average temperature reset")
+    log.info("Averages reset")
     return '', 204
 
 
