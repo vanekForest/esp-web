@@ -9,6 +9,7 @@ services:
     working_dir: /app
     ports:
       - "5001:5000"
+    restart: unless-stopped
 
   frontend:
     build:
@@ -17,3 +18,4 @@ services:
       - "8081:80"
     depends_on:
       - backend
+    restart: unless-stopped

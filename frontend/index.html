@@ -6,7 +6,7 @@
     <style>
         body {
             font-family: sans-serif;
-            background: #111;
+            background:  #0d0d0b;
             color: #eee;
             text-align: center;
             margin: 0;
@@ -46,12 +46,23 @@
             visibility: hidden;
             user-select: none;
         }
+        #clothing-img {
+            height: 180px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
 <h1>🌡️ Температура с ESP32</h1>
+
 <div class="box">🏠 Внутри: <span id="indoor">--</span> °C (ср: <span id="indoor_avg">--</span>)</div>
 <div class="box">🌲 Снаружи: <span id="outdoor">--</span> °C (ср: <span id="outdoor_avg">--</span>)</div>
+
+<div class="box">
+    🧍 Одежда по погоде:<br>
+    <img id="clothing-img" src="" alt="Одежда" />
+</div>
+
 <button onclick="resetAverage()">Сбросить средние</button>
 <div id="message"></div>
 
@@ -68,11 +79,13 @@
             updateField("outdoor", data.outdoor);
             updateField("indoor_avg", data.indoor_avg);
             updateField("outdoor_avg", data.outdoor_avg);
+            updateClothing(data.outdoor);
         } catch (err) {
             console.error("Ошибка получения данных:", err);
             ["indoor", "outdoor", "indoor_avg", "outdoor_avg"].forEach(id => {
                 document.getElementById(id).textContent = "--";
             });
+            document.getElementById("clothing-img").src = "";
         }
     }
 
@@ -84,6 +97,26 @@
         } else {
             el.textContent = value.toFixed(1);
             el.classList.remove("error");
+        }
+    }
+
+    function updateClothing(temp) {
+        const img = document.getElementById("clothing-img");
+        if (temp === null || temp === undefined || temp === -127) {
+            img.src = "";
+            return;
+        }
+
+        if (temp < -5) {
+            img.src = "images/1.png";
+        } else if (temp < 10) {
+            img.src = "images/2.png";
+        } else if (temp < 20) {
+            img.src = "images/3.png";
+        } else if (temp < 30) {
+            img.src = "images/4.png";
+        } else {
+            img.src = "images/5.png";
         }
     }
 
